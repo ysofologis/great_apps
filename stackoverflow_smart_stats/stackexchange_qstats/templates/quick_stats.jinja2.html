@@ -2,11 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Quick stats over answers for site {{quick_stats.site}}</title>
+    <title>Stackoverflow Quick Stats</title>
 </head>
-<body>
-    <div>
-        <h4>Total accepted answers: {{quick_stats.accepted_count}}</h4>
+<body style="background-color: #f4f4f4;height: 100%; width: 100%;">
+    <div style="margin: 50px 50px 0 50px;">
+        <h4>Quick answering statistics for &nbsp;<span style="color: darkmagenta">{{quick_stats.site}}</span></h4>
+        <hr/>
+        <h5>Total answers: {{quick_stats.total_count}}</h5>
+        <h5>Total accepted answers: {{quick_stats.accepted_count}}</h5>
+        <h5>Average answers per question {{quick_stats.average_answers_per_question}}</h5>
+        <hr/>
+        <h5>Elapsed {{quick_stats.time_elapsed}} secs</h5>
     </div>
 </body>
 </html>

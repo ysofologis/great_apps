@@ -1,5 +1,6 @@
 arrow==0.9.0
 backports.shutil-get-terminal-size==1.0.0
+colorama==0.3.7
 decorator==4.0.10
 enum34==1.1.6
 httpie==0.9.6
@@ -20,5 +21,7 @@ requests==2.12.1
 simplegeneric==0.8.1
 six==1.10.0
 times==0.7
+tinydb==3.2.1
 traitlets==4.3.1
 wcwidth==0.1.7
+win-unicode-console==0.5

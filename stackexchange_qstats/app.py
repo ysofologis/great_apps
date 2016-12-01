@@ -14,6 +14,7 @@ from jinja2 import Environment, PackageLoader
 # limit requests because of throttling ban
 PAGE_SIZE = 100
 MAX_RESULTS = 500
+MAX_COMMENTS_RESULTS = 50
 LOCAL_DATA = 'data/stats.json'
 
 # for clarity
@@ -22,7 +23,7 @@ DATE_FORMAT = "%Y-%m-%d"
 
 
 class QuickStats:
-    def start_compute(self, site, all_answers, top10_answers):
+    def start_compute(self, site, all_answers, bottom10_comments):
         self.site = site
         self.total_count = len(all_answers)
 
@@ -36,10 +37,14 @@ class QuickStats:
         self.accepted_average_score = sum( [y['score'] for y in answers_accepted] ) / (self.accepted_count if self.accepted_count > 0 else 0)
 
         # group answers per question
-        group_by_question = list(map(lambda x: { 'question_id': x[0], 'answers' : list(x[1]) }, itertools.groupby(all_answers, lambda z: z['question_id'])))
+        group_by_question = map(lambda x: { 'question_id': x[0], 'answers' : list(x[1]) }, itertools.groupby(all_answers, lambda z: z['question_id']))
         question_count = len(group_by_question)
         answer_count = sum( [ len(g['answers']) for g in group_by_question ]  )
         self.average_answers_per_question = answer_count / ( question_count * 1.0)
+
+        self.top10_worst_answers_comments = bottom10_comments
+
+
 
     def end_compute(self,start_time):
         self.time_elapsed = time.clock() - start_time
@@ -60,32 +65,54 @@ def query_resource(resource_name, params=None):
     return data
 
 
-def get_paged_answers(datefrom, dateto, site, page, page_size,sort_by='activity'):
+def get_paged_answers(datefrom, dateto, site, page, page_size, sort_by='activity', order='desc'):
     """
     Since the API does not returns the total size, we have to repeatdely
     get the results until no more data is returned
+
     :param datefrom:
     :param dateto:
     :param site:
     :param page:
     :param page_size:
+    :param sort_by:
+    :param order:
     :return:
     """
     paged_data = query_resource('answers', {'datefrom': datefrom,
                                         'dateto': dateto,
                                         'site': site,
-                                        'order': 'desc',
+                                        'order': order,
                                         'sort': sort_by,
                                         'page': page,
-                                        'page_size': page_size
+                                        'pagesize': page_size
                                         })
     return paged_data
 
 
+def get_comments_from_answers(site,answers):
+    comments = []
+    page = 1
+    page_size = 500
+
+    answer_ids = map(lambda x: str(x['answer_id']), answers )
+    resource_name = "answers/" + ";".join(answer_ids) + "/comments"
+    paged_data = query_resource(resource_name, { 'site': site, 'sort': 'creation', 'order': 'desc', 'page': page, 'page_size': page_size })
+    while True:
+        comments.extend(paged_data['items'])
+        if not paged_data['has_more']:
+            break
+
+        page += 1
+        paged_data = query_resource(resource_name, { 'site': site, 'sort': 'creation', 'order': 'desc', 'page': page, 'page_size': page_size })
+
+    return comments
+
+
 def to_unix_epoch(date):
     date_m = moment.date(date, DATE_FORMAT)
-    date = datetime.date(date_m.year, date_m.month, date_m.day)
-    return  date.strftime("%s")
+    r = int(date_m.epoch())
+    return "%s" % r
 
 
 def retrieve_all_answers(site, datefrom, dateto):
@@ -96,13 +123,14 @@ def retrieve_all_answers(site, datefrom, dateto):
     data = []
     page = 1
     paged_data = get_paged_answers(datefrom, dateto, site, page, page_size=PAGE_SIZE)
-    while paged_data['has_more']:
+    while True:
         items = paged_data['items']
         data.extend(items)
+
         # save in every step, avoid loosing data in case of throttling exception
         store_data(data)
 
-        if MAX_RESULTS > 0 and len(data) >= MAX_RESULTS:
+        if MAX_RESULTS > 0 and len(data) >= MAX_RESULTS or not paged_data['has_more']:
             break
         page += 1
         paged_data = get_paged_answers(datefrom, dateto, site, page, page_size=PAGE_SIZE)
@@ -153,10 +181,17 @@ def compute_stats(args):
     else:
         all_answers = retrieve_all_answers(args.site, datefrom_unix, dateto_unix)
 
-    top10_answers = get_paged_answers(datefrom_unix, dateto_unix, args.site, 1, page_size=10, sort_by='score')
+    bottom10_answers = get_paged_answers(datefrom_unix, dateto_unix, args.site, 1, 10, 'votes', order='desc')
+    bottom10_comments = []
+
+    # query comments one by one answer, could not find a relation between 'comments' and 'answer' resource
+    for answer in bottom10_answers['items']:
+        comments = get_comments_from_answers(args.site, [answer])
+        answer_id = answer['answer_id']
+        bottom10_comments.append( { 'answer_id': answer_id,  'comments_count': len(comments)} )
 
     quick_stats = QuickStats()
-    quick_stats.start_compute(args.site, all_answers, top10_answers)
+    quick_stats.start_compute(args.site, all_answers, bottom10_comments)
     quick_stats.end_compute(start_time)
 
     render_stats(quick_stats)

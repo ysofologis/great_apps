@@ -12,6 +12,13 @@
         <h5>Total accepted answers: {{quick_stats.accepted_count}}</h5>
         <h5>Average answers per question {{quick_stats.average_answers_per_question}}</h5>
         <hr/>
+        <h5>Top 10 Worst Answers Comments</h5>
+
+       {% for item in quick_stats.top10_worst_answers_comments %}
+            <div>
+                   <span>Answer Id &nbsp;</span>{{item.answer_id}}<span style="width:10px;"></span><span>Has {{item.comments_count}} Comments</span>
+            </div>
+        {% endfor %}
         <h5>Elapsed {{quick_stats.time_elapsed}} secs</h5>
     </div>
 </body>
